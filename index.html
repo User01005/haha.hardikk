@@ -2487,6 +2487,9 @@ function docked(i,r){
   return{x:r.left-NOV+i*(NW+NGAP)+NW/2-CW/2, y:r.top+(r.height-h)/2+(CH*s)/2-CH/2,
          s:s, r:-7+i*4.5, rx:0}}
 var stoolEl=document.getElementById("stool");
+var dropEl=document.getElementById("drop");
+/* viewport top of the sticky drop stage at scroll s: scrolls in, pins at 0, scrolls out */
+function stageTop(s){var d=dropEl.offsetTop,e=d+dropEl.offsetHeight-innerHeight;return s<d?d-s:s<=e?0:e-s}
 /* B: fallen on the table. r is the stool's rect, read once per frame — same reasoning as docked() */
 function fallen(i,r){
   var jog=[5,-8,7,-5][i];
@@ -2678,7 +2681,10 @@ function placeFeats(){
 function render(){
   if(!onHome)return;
   var p1=ease(clamp((smooth-marks.f0)/(marks.f1-marks.f0)));
-  var p2=ease(clamp((smooth-marks.l0)/(marks.l1-marks.l0)));
+  var p2l=clamp((smooth-marks.l0)/(marks.l1-marks.l0)),p2=ease(p2l);
+  /* the row sits ~500px below the stool on the page, so an eased vertical move outran the
+     scroll mid-rise and the cards sank back down before rising again (the bounce at the
+     stool). Vertical travel runs linear (p2l); scale, tilt and x keep the ease. */
   var peel=clamp(p2*1.7);deck.style.setProperty("--peel",peel.toFixed(3));deck.classList.toggle("peeled",peel>.97);
   /* hover opens as soon as the cards have left the table and are heading into the row,
      not only when they are pixel-perfect: people stop scrolling wherever they like */
@@ -2696,12 +2702,17 @@ function render(){
   var navR=navSlot.getBoundingClientRect(),
       stoolR=stoolEl?stoolEl.getBoundingClientRect():null,
       slotR=p2>0?caseSlot.getBoundingClientRect():null;
+  /* once they lift off the stool the cards hold where they were at the start of the rise and
+     the row scrolls up to meet them; they then ride it. They only ever move up, never sink
+     back toward a row that is still below them. hold = how far the stool has scrolled away
+     since the rise began (the stool sits in a sticky stage, so compute it, don't guess) */
+  var hold=0;if(dropEl&&p2>0)hold=stageTop(marks.l0)-stageTop(smooth);
   for(var i=0;i<cards.length;i++){
     hv[i]+=((i===hotI?1:0)-hv[i])*.16; if(hv[i]<.001)hv[i]=0;
     var A=docked(i,navR),B=fallen(i,stoolR),C=slotR?laid(i,slotR):null;
     var m={x:lerp(A.x,B.x,p1),y:lerp(A.y,B.y,p1),s:lerp(A.s,B.s,p1),r:lerp(A.r,B.r,p1),
            rx:lerp(A.rx||0,B.rx||0,p1),ry:0};
-    if(p2>0)m={x:lerp(m.x,C.x,p2),y:lerp(m.y,C.y,p2),s:lerp(m.s,C.s,p2),r:lerp(m.r,C.r,p2),
+    if(p2>0)m={x:lerp(m.x,C.x,p2),y:dropEl?Math.min(m.y+hold,C.y):lerp(m.y,C.y,p2l),s:lerp(m.s,C.s,p2),r:lerp(m.r,C.r,p2),
                rx:lerp(m.rx,C.rx||0,p2),ry:lerp(0,C.ry||0,p2)};
     if(!narrow&&p2>0){
       /* the focused card comes forward, straight on */
@@ -2734,8 +2745,10 @@ function spy(){
   Array.prototype.forEach.call(document.querySelectorAll(".nav a[data-r]"),function(a){a.classList.toggle("here",a.getAttribute("data-r")===key)})}
 function frame(){
   target=window.pageYOffset||document.documentElement.scrollTop||0;
-  smooth+=(target-smooth)*.14;
-  if(Math.abs(target-smooth)<.15)smooth=target;
+  /* progress runs on the real scroll, not a lagged copy: the stool and row rects the cards
+     travel between are read live and move 1:1 with the page, so a lagged progress value made
+     the cards snap with the page and then drift (the jitter around the stool on the rise) */
+  smooth=target;
   render();requestAnimationFrame(frame)}
 
 /* the divider is drawn by hand: a pencil comes in, lays down a line, goes back over part of it,
@@ -3793,7 +3806,7 @@ function reveal(){
   function prefetch(){var cur=keyOf(location.hash),all=PAGES.map(function(p){return p[0]}).concat(["contact"]);
     all.forEach(function(k,i){if(k===cur||CACHE[k])return;var v=document.getElementById("v-"+k);if(!v)return;
       setTimeout(function(){if(!CACHE[k])CACHE[k]=snap(v,0)},i*60)})}
-  setTimeout(prefetch,1600);
+  /* prefetch only fed the removed filmstrip transition; no longer scheduled */
   function A(el,kf,o){return el.animate(kf,Object.assign({fill:"forwards"},o))}
   function T(x,y,k){return "translate("+x.toFixed(1)+"px,"+y.toFixed(1)+"px) scale("+k.toFixed(4)+")"}
   /* the moving page goes soft and grainy mid-flight, and only the moving page */
@@ -3850,8 +3863,12 @@ function reveal(){
           requestAnimationFrame(function(){document.body.classList.remove("sw-land");
             A(sw,[{opacity:1},{opacity:0}],{duration:160}).onfinish=function(){sw.classList.remove("on");sw.getAnimations({subtree:true}).forEach(function(a){a.cancel()});
               Array.prototype.forEach.call(row.querySelectorAll(".pvm"),function(m){m.remove()});row.innerHTML="";document.body.classList.remove("swing");busy=false;prefetch()}})})}},1240)}
+  /* Hardik asked for the filmstrip page transition gone: it cloned every top-level page's DOM
+     and ran a ~1.2s choreographed carousel (pan, border-radius, blur) on every nav click, which
+     is real main-thread work on a page this asset-heavy. go() above is now unused but left in
+     place in case this is ever revisited; nav clicks just navigate directly. */
   document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href^='#/']");if(!a||e.metaKey||e.ctrlKey||e.shiftKey)return;
-    if(!a.closest(".nav,.foot,.gobar,.navmenu"))return;e.preventDefault();go(a.getAttribute("href"))},true);
+    if(!a.closest(".nav,.foot,.gobar,.navmenu"))return;e.preventDefault();location.hash=a.getAttribute("href")},true);
 
   /* ============ 2. the canvas ============ */
   var DEF=[{t:"text",x:-10,y:-170,w:980,h:70,r:0,fs:64,txt:"Everything else I've made."}];
