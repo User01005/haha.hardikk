@@ -2479,20 +2479,20 @@ function measure(){narrow=window.innerWidth<820;NOV=window.innerWidth<=560?-2:10
   var rows=narrow?2:1;
   caseSlot.style.height=(rows*CH+(rows-1)*12)+"px"}
 
-/* A: docked inside the nav, right after Work */
-function docked(i){
-  var r=navSlot.getBoundingClientRect();
+/* A: docked inside the nav, right after Work
+   r is navSlot's rect, read once per frame in render() — not per card — so writing
+   each card's transform in the same frame never forces a fresh layout read for the next one */
+function docked(i,r){
   var s=NW/CW, h=CH*s;
   /* overlapping fan, each card tipped a little so the stack reads as a hand */
   return{x:r.left-NOV+i*(NW+NGAP)+NW/2-CW/2, y:r.top+(r.height-h)/2+(CH*s)/2-CH/2,
          s:s, r:-7+i*4.5, rx:0}}
-/* B: fallen on the table */
-function fallen(i){
-  /* land on the stool's actual seat, measured from the image itself */
-  var st=document.getElementById("stool"),jog=[5,-8,7,-5][i];
+var stoolEl=document.getElementById("stool");
+/* B: fallen on the table. r is the stool's rect, read once per frame — same reasoning as docked() */
+function fallen(i,r){
+  var jog=[5,-8,7,-5][i];
   var scx,scy,halfW;
-  if(st){
-    var r=st.getBoundingClientRect();
+  if(r){
     scx=r.left+r.width*0.475;     /* seat centre x, measured from the alpha channel */
     /* the seat's TOP FACE runs from the back rim (0.006) to the front highlight (0.113);
        below that is the side of the seat, not the surface. The hand of cards is sized and
@@ -2507,9 +2507,8 @@ function fallen(i){
   /* outer cards sit further BACK — the seat is round, so its edges recede */
   return{x:scx-CW/2+t*sp, y:scy-CH/2-Math.abs(t)*3+jog*.18,
          s:sc, r:t*10+jog*.5, rx:67}}
-/* C: risen, laid out horizontally */
-function laid(i){
-  var r=caseSlot.getBoundingClientRect();
+/* C: risen, laid out horizontally. r is caseSlot's rect, read once per frame — same reasoning */
+function laid(i,r){
   var cols=narrow?2:4,gap=narrow?12:22,col=i%cols,row=Math.floor(i/cols),rowW=cols*CW+(cols-1)*gap;
   return{x:r.left+(r.width-rowW)/2+col*(CW+gap),y:r.top+row*(CH+gap),s:1,r:0,rx:0,ry:0}}
 
@@ -2691,9 +2690,16 @@ function render(){
   var hvHot=lastHot>=0?hv[lastHot]:0;
   veil.style.opacity=hvHot.toFixed(3);
   veil.style.visibility=hvHot>.01?"visible":"hidden";
+  /* read every rect this frame needs ONCE, before any card writes below — interleaving a
+     getBoundingClientRect() read with the transform/box-shadow writes for each card forces
+     the browser to redo layout on every single card instead of once per frame, and that's
+     what made the table→row stretch (which also reads caseSlot) noticeably janky */
+  var navR=navSlot.getBoundingClientRect(),
+      stoolR=stoolEl?stoolEl.getBoundingClientRect():null,
+      slotR=p2>0?caseSlot.getBoundingClientRect():null;
   for(var i=0;i<cards.length;i++){
     hv[i]+=((i===hotI?1:0)-hv[i])*.16; if(hv[i]<.001)hv[i]=0;
-    var A=docked(i),B=fallen(i),C=laid(i);
+    var A=docked(i,navR),B=fallen(i,stoolR),C=slotR?laid(i,slotR):null;
     var m={x:lerp(A.x,B.x,p1),y:lerp(A.y,B.y,p1),s:lerp(A.s,B.s,p1),r:lerp(A.r,B.r,p1),
            rx:lerp(A.rx||0,B.rx||0,p1),ry:0};
     if(p2>0)m={x:lerp(m.x,C.x,p2),y:lerp(m.y,C.y,p2),s:lerp(m.s,C.s,p2),r:lerp(m.r,C.r,p2),
