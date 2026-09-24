@@ -1571,20 +1571,19 @@ body.noeblur .eblur{opacity:0}
 @media (prefers-reduced-motion:reduce){.wsh-tl li.now i{animation:none}}
 
 /* =================== ROUND 18: card stroke, Alter crop, Track It alignment =================== */
-/* the stroke frames the screen, not the whole card: it has to survive every state a card
-   passes through (docked in the nav, falling, on the stool, the real screen revealed), so it
-   sits on the container those states share rather than on any one layer inside it */
-.card-top,.wcard .top{box-shadow:inset 0 0 0 1.5px rgba(19,19,22,.9)}
 
 /* the real Alter screenshot carries the phone's own home-indicator bar at the very bottom.
    Alter's UI is black there anyway, so a matching black mask hides it without touching the asset */
 .ccv:not(.trk-ccv):not(.wsh-ccv) .cph::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3.4%;background:#000;pointer-events:none}
 
-/* Track It's dock sits lower in its own screenshot than Alter's + does in Alter's, so side by
-   side the two read as misaligned. Nudge the image up to match, then move its hotspots with it. */
-.trk-ccv .cph img{height:112%;transform:translateY(-52px)}
-.trk-plus{top:79.6%!important}
-.trk-sv{top:81.6%!important}
+/* Track It's dock sits at the bottom of the card like Alter's nav: the screenshot drops 3.3% so
+   the + lands 8.5% of the phone height above the edge, same as Alter's bar. All in % so it holds
+   at every card size (the old fixed -52px shift only fit the 230px desktop card, and its hotspot
+   % was never moved with it, which left the pulse floating above the +). The + is at 88.2% of
+   the screenshot, the save bar at 90.2%; hotspots are those plus the 3.3% drop. */
+.trk-ccv .cph img{transform:translateY(3.3%)}
+.trk-plus{top:91.5%!important}
+.trk-sv{top:93.5%!important}
 /* ---------- story ---------- */
 #story{padding-block:var(--gap-sec) calc(var(--gap-sec) - 40px)}
 #story .wrap{display:flex;flex-direction:column;align-items:center;gap:var(--gap-head)}
@@ -1770,6 +1769,7 @@ body.noeblur .eblur{opacity:0}
 /* ---------- deck ---------- */
 #deck{position:fixed;inset:0;z-index:80;pointer-events:none;opacity:0;transition:opacity .35s}
 #deck.live{opacity:1}
+#deck.doc{position:absolute;inset:auto;top:0;left:0;right:0;height:0}
 .card{position:absolute;left:0;top:0;width:230px;height:300px;backface-visibility:hidden;background:var(--paper);
   border:1px solid var(--edge);border-radius:44px;box-shadow:var(--sh);overflow:hidden;
   pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;will-change:transform;
@@ -1782,6 +1782,16 @@ body.noeblur .eblur{opacity:0}
   display:flex;align-items:center;justify-content:space-between;gap:10px}
 .card-meta b{font:700 13px/1.2 var(--pixel);letter-spacing:-.02em}
 .card-meta i{font-style:normal;font:400 10px/1 var(--body);color:var(--ink-faint)}
+/* one fixed height for every card's name bar, so the screens above all line up */
+.card-meta{flex:none;height:41px;box-sizing:border-box}
+.card-meta b,.card-meta i{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-meta b{flex:none}
+.card-meta .ts{display:none}
+@media (max-width:819px){
+  .card-meta{height:38px;padding:0 10px;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px}
+  .card-meta b{font-size:12px;max-width:100%}
+  .card-meta i{font-size:9px;max-width:100%}
+  .card-meta .tl{display:none}.card-meta .ts{display:inline}}
 
 /* ---------- card focus: soft page, glass feature chips ---------- */
 .focus-veil{position:fixed;inset:0;z-index:65;pointer-events:none;opacity:0;visibility:hidden;overflow:hidden;
@@ -2463,12 +2473,14 @@ var storyUnits=Array.prototype.slice.call(document.querySelectorAll("#storyText 
 /* ---------- deck ---------- */
 var deck=document.getElementById("deck"),navSlot=document.getElementById("navSlot"),
     caseSlot=document.getElementById("caseSlot");
+/* the tagline cut down for the small cards on phones, so every name bar is the same two lines */
+var SHORT_T={"alter":"AI companion","track-it":"Expense tracker","washio":"Laundry app","parchi":"Voice billing","hourbit":"Focus timer"};
 var cards=P.slice(0,4).map(function(p){
   var a=document.createElement("a");
   a.className="card";a.href="#/work/"+p.id;a.style.setProperty("--swatch",p.s);
   a.setAttribute("aria-label",p.n+" — "+p.t);
   a.innerHTML='<span class="card-top"><span class="card-art"><svg viewBox="0 0 100 100" aria-hidden="true">'+p.a+'</svg></span></span>'+
-   '<span class="card-meta"><b>'+p.n+'</b><i>'+p.t+'</i></span>';
+   '<span class="card-meta"><b>'+p.n+'</b><i><span class="tl">'+p.t+'</span><span class="ts">'+(SHORT_T[p.id]||p.t)+'</span></i></span>';
   deck.appendChild(a);return a});
 
 var CW=230,CH=300,narrow=false,NW=36,NGAP=-9,NOV=10;
@@ -2488,8 +2500,7 @@ function docked(i,r){
          s:s, r:-7+i*4.5, rx:0}}
 var stoolEl=document.getElementById("stool");
 var dropEl=document.getElementById("drop");
-/* viewport top of the sticky drop stage at scroll s: scrolls in, pins at 0, scrolls out */
-function stageTop(s){var d=dropEl.offsetTop,e=d+dropEl.offsetHeight-innerHeight;return s<d?d-s:s<=e?0:e-s}
+
 /* B: fallen on the table. r is the stool's rect, read once per frame — same reasoning as docked() */
 function fallen(i,r){
   var jog=[5,-8,7,-5][i];
@@ -2681,10 +2692,21 @@ function placeFeats(){
 function render(){
   if(!onHome)return;
   var p1=ease(clamp((smooth-marks.f0)/(marks.f1-marks.f0)));
-  var p2l=clamp((smooth-marks.l0)/(marks.l1-marks.l0)),p2=ease(p2l);
-  /* the row sits ~500px below the stool on the page, so an eased vertical move outran the
-     scroll mid-rise and the cards sank back down before rising again (the bounce at the
-     stool). Vertical travel runs linear (p2l); scale, tilt and x keep the ease. */
+  var p2=ease(clamp((smooth-marks.l0)/(marks.l1-marks.l0)));
+  /* read every rect this frame needs ONCE, before any write below: a getBoundingClientRect()
+     after a style write forces the browser to redo layout mid-frame */
+  var sy=window.pageYOffset||0,
+      navR=navSlot.getBoundingClientRect(),
+      stoolR=stoolEl?stoolEl.getBoundingClientRect():null,
+      slotR=p2>0?caseSlot.getBoundingClientRect():null,
+      /* once the stool's sticky stage lets go, the cards ride IN the page (absolute, document
+         coordinates) instead of being pinned to the screen and chased by JS. The browser then
+         scrolls stool and cards together in the same frame, so they can't fall behind the
+         stool and snap back on a fast scroll. Before that the stool is pinned, so the
+         screen-fixed cards already match it. */
+      docMode=!!dropEl&&sy>dropEl.offsetTop+dropEl.offsetHeight-innerHeight,
+      oy=docMode?sy:0;
+  deck.classList.toggle("doc",docMode);
   var peel=clamp(p2*1.7);deck.style.setProperty("--peel",peel.toFixed(3));deck.classList.toggle("peeled",peel>.97);
   /* hover opens as soon as the cards have left the table and are heading into the row,
      not only when they are pixel-perfect: people stop scrolling wherever they like */
@@ -2695,24 +2717,12 @@ function render(){
   var hvHot=lastHot>=0?hv[lastHot]:0;
   veil.style.opacity=hvHot.toFixed(3);
   veil.style.visibility=hvHot>.01?"visible":"hidden";
-  /* read every rect this frame needs ONCE, before any card writes below — interleaving a
-     getBoundingClientRect() read with the transform/box-shadow writes for each card forces
-     the browser to redo layout on every single card instead of once per frame, and that's
-     what made the table→row stretch (which also reads caseSlot) noticeably janky */
-  var navR=navSlot.getBoundingClientRect(),
-      stoolR=stoolEl?stoolEl.getBoundingClientRect():null,
-      slotR=p2>0?caseSlot.getBoundingClientRect():null;
-  /* once they lift off the stool the cards hold where they were at the start of the rise and
-     the row scrolls up to meet them; they then ride it. They only ever move up, never sink
-     back toward a row that is still below them. hold = how far the stool has scrolled away
-     since the rise began (the stool sits in a sticky stage, so compute it, don't guess) */
-  var hold=0;if(dropEl&&p2>0)hold=stageTop(marks.l0)-stageTop(smooth);
   for(var i=0;i<cards.length;i++){
     hv[i]+=((i===hotI?1:0)-hv[i])*.16; if(hv[i]<.001)hv[i]=0;
     var A=docked(i,navR),B=fallen(i,stoolR),C=slotR?laid(i,slotR):null;
     var m={x:lerp(A.x,B.x,p1),y:lerp(A.y,B.y,p1),s:lerp(A.s,B.s,p1),r:lerp(A.r,B.r,p1),
            rx:lerp(A.rx||0,B.rx||0,p1),ry:0};
-    if(p2>0)m={x:lerp(m.x,C.x,p2),y:dropEl?Math.min(m.y+hold,C.y):lerp(m.y,C.y,p2l),s:lerp(m.s,C.s,p2),r:lerp(m.r,C.r,p2),
+    if(p2>0)m={x:lerp(m.x,C.x,p2),y:lerp(m.y,C.y,p2),s:lerp(m.s,C.s,p2),r:lerp(m.r,C.r,p2),
                rx:lerp(m.rx,C.rx||0,p2),ry:lerp(0,C.ry||0,p2)};
     if(!narrow&&p2>0){
       /* the focused card comes forward, straight on */
@@ -2721,7 +2731,7 @@ function render(){
     cards[i].style.zIndex=i===lastHot&&hvHot>.01?20:(i+1);
     /* everything else leaves the stage, so the card sits alone on the page of text */
     cards[i].style.opacity=(lastHot>=0&&i!==lastHot)?(1-hvHot).toFixed(3):"";
-    apply(i,m,hv[i])}
+    m.y+=oy;apply(i,m,hv[i])}
   placeFeats();
   var sp=clamp((smooth-marks.s0)/(marks.s1-marks.s0));
   /* each word comes out of a blur as you scroll: the reading edge moves with the page,
@@ -2745,10 +2755,11 @@ function spy(){
   Array.prototype.forEach.call(document.querySelectorAll(".nav a[data-r]"),function(a){a.classList.toggle("here",a.getAttribute("data-r")===key)})}
 function frame(){
   target=window.pageYOffset||document.documentElement.scrollTop||0;
-  /* progress runs on the real scroll, not a lagged copy: the stool and row rects the cards
-     travel between are read live and move 1:1 with the page, so a lagged progress value made
-     the cards snap with the page and then drift (the jitter around the stool on the rise) */
-  smooth=target;
+  /* progress glides a little behind the scroll. The ends it moves between are real page
+     positions (see docMode in render), so the glide only softens the rise itself; sitting on
+     the stool or in the row, the cards stay locked to the page */
+  smooth+=(target-smooth)*.14;
+  if(Math.abs(target-smooth)<.15)smooth=target;
   render();requestAnimationFrame(frame)}
 
 /* the divider is drawn by hand: a pencil comes in, lays down a line, goes back over part of it,
