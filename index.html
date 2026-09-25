@@ -164,8 +164,7 @@ h3{font-family:var(--pixel);font-weight:700;margin:0 0 8px;font-size:var(--t-h3)
 .socials a{--lift:4px}
 
 .view{display:none}
-.view.on{display:block;animation:viewIn .5s cubic-bezier(.22,1,.36,1)}
-@keyframes viewIn{from{opacity:0;transform:translateY(16px)}}
+.view.on{display:block}
 .page-head{padding-block:150px 60px}
 
 /* ---------- HERO ---------- */
@@ -1572,20 +1571,19 @@ body.noeblur .eblur{opacity:0}
 @media (prefers-reduced-motion:reduce){.wsh-tl li.now i{animation:none}}
 
 /* =================== ROUND 18: card stroke, Alter crop, Track It alignment =================== */
-/* the stroke frames the screen, not the whole card: it has to survive every state a card
-   passes through (docked in the nav, falling, on the stool, the real screen revealed), so it
-   sits on the container those states share rather than on any one layer inside it */
-.card-top,.wcard .top{box-shadow:inset 0 0 0 1.5px rgba(19,19,22,.9)}
 
 /* the real Alter screenshot carries the phone's own home-indicator bar at the very bottom.
    Alter's UI is black there anyway, so a matching black mask hides it without touching the asset */
 .ccv:not(.trk-ccv):not(.wsh-ccv) .cph::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3.4%;background:#000;pointer-events:none}
 
-/* Track It's dock sits lower in its own screenshot than Alter's + does in Alter's, so side by
-   side the two read as misaligned. Nudge the image up to match, then move its hotspots with it. */
-.trk-ccv .cph img{height:112%;transform:translateY(-52px)}
-.trk-plus{top:79.6%!important}
-.trk-sv{top:81.6%!important}
+/* Track It's dock sits at the bottom of the card like Alter's nav: the screenshot drops 3.3% so
+   the + lands 8.5% of the phone height above the edge, same as Alter's bar. All in % so it holds
+   at every card size (the old fixed -52px shift only fit the 230px desktop card, and its hotspot
+   % was never moved with it, which left the pulse floating above the +). The + is at 88.2% of
+   the screenshot, the save bar at 90.2%; hotspots are those plus the 3.3% drop. */
+.trk-ccv .cph img{transform:translateY(3.3%)}
+.trk-plus{top:91.5%!important}
+.trk-sv{top:93.5%!important}
 /* ---------- story ---------- */
 #story{padding-block:var(--gap-sec) calc(var(--gap-sec) - 40px)}
 #story .wrap{display:flex;flex-direction:column;align-items:center;gap:var(--gap-head)}
@@ -1771,6 +1769,7 @@ body.noeblur .eblur{opacity:0}
 /* ---------- deck ---------- */
 #deck{position:fixed;inset:0;z-index:80;pointer-events:none;opacity:0;transition:opacity .35s}
 #deck.live{opacity:1}
+#deck.doc{position:absolute;inset:auto;top:0;left:0;right:0;height:0}
 .card{position:absolute;left:0;top:0;width:230px;height:300px;backface-visibility:hidden;background:var(--paper);
   border:1px solid var(--edge);border-radius:44px;box-shadow:var(--sh);overflow:hidden;
   pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;will-change:transform;
@@ -1783,6 +1782,16 @@ body.noeblur .eblur{opacity:0}
   display:flex;align-items:center;justify-content:space-between;gap:10px}
 .card-meta b{font:700 13px/1.2 var(--pixel);letter-spacing:-.02em}
 .card-meta i{font-style:normal;font:400 10px/1 var(--body);color:var(--ink-faint)}
+/* one fixed height for every card's name bar, so the screens above all line up */
+.card-meta{flex:none;height:41px;box-sizing:border-box}
+.card-meta b,.card-meta i{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-meta b{flex:none}
+.card-meta .ts{display:none}
+@media (max-width:819px){
+  .card-meta{height:38px;padding:0 10px;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px}
+  .card-meta b{font-size:12px;max-width:100%}
+  .card-meta i{font-size:9px;max-width:100%}
+  .card-meta .tl{display:none}.card-meta .ts{display:inline}}
 
 /* ---------- card focus: soft page, glass feature chips ---------- */
 .focus-veil{position:fixed;inset:0;z-index:65;pointer-events:none;opacity:0;visibility:hidden;overflow:hidden;
@@ -2464,12 +2473,14 @@ var storyUnits=Array.prototype.slice.call(document.querySelectorAll("#storyText 
 /* ---------- deck ---------- */
 var deck=document.getElementById("deck"),navSlot=document.getElementById("navSlot"),
     caseSlot=document.getElementById("caseSlot");
+/* the tagline cut down for the small cards on phones, so every name bar is the same two lines */
+var SHORT_T={"alter":"AI companion","track-it":"Expense tracker","washio":"Laundry app","parchi":"Voice billing","hourbit":"Focus timer"};
 var cards=P.slice(0,4).map(function(p){
   var a=document.createElement("a");
   a.className="card";a.href="#/work/"+p.id;a.style.setProperty("--swatch",p.s);
   a.setAttribute("aria-label",p.n+" — "+p.t);
   a.innerHTML='<span class="card-top"><span class="card-art"><svg viewBox="0 0 100 100" aria-hidden="true">'+p.a+'</svg></span></span>'+
-   '<span class="card-meta"><b>'+p.n+'</b><i>'+p.t+'</i></span>';
+   '<span class="card-meta"><b>'+p.n+'</b><i><span class="tl">'+p.t+'</span><span class="ts">'+(SHORT_T[p.id]||p.t)+'</span></i></span>';
   deck.appendChild(a);return a});
 
 var CW=230,CH=300,narrow=false,NW=36,NGAP=-9,NOV=10;
@@ -2479,20 +2490,22 @@ function measure(){narrow=window.innerWidth<820;NOV=window.innerWidth<=560?-2:10
   var rows=narrow?2:1;
   caseSlot.style.height=(rows*CH+(rows-1)*12)+"px"}
 
-/* A: docked inside the nav, right after Work */
-function docked(i){
-  var r=navSlot.getBoundingClientRect();
+/* A: docked inside the nav, right after Work
+   r is navSlot's rect, read once per frame in render() — not per card — so writing
+   each card's transform in the same frame never forces a fresh layout read for the next one */
+function docked(i,r){
   var s=NW/CW, h=CH*s;
   /* overlapping fan, each card tipped a little so the stack reads as a hand */
   return{x:r.left-NOV+i*(NW+NGAP)+NW/2-CW/2, y:r.top+(r.height-h)/2+(CH*s)/2-CH/2,
          s:s, r:-7+i*4.5, rx:0}}
-/* B: fallen on the table */
-function fallen(i){
-  /* land on the stool's actual seat, measured from the image itself */
-  var st=document.getElementById("stool"),jog=[5,-8,7,-5][i];
+var stoolEl=document.getElementById("stool");
+var dropEl=document.getElementById("drop");
+
+/* B: fallen on the table. r is the stool's rect, read once per frame — same reasoning as docked() */
+function fallen(i,r){
+  var jog=[5,-8,7,-5][i];
   var scx,scy,halfW;
-  if(st){
-    var r=st.getBoundingClientRect();
+  if(r){
     scx=r.left+r.width*0.475;     /* seat centre x, measured from the alpha channel */
     /* the seat's TOP FACE runs from the back rim (0.006) to the front highlight (0.113);
        below that is the side of the seat, not the surface. The hand of cards is sized and
@@ -2507,9 +2520,8 @@ function fallen(i){
   /* outer cards sit further BACK — the seat is round, so its edges recede */
   return{x:scx-CW/2+t*sp, y:scy-CH/2-Math.abs(t)*3+jog*.18,
          s:sc, r:t*10+jog*.5, rx:67}}
-/* C: risen, laid out horizontally */
-function laid(i){
-  var r=caseSlot.getBoundingClientRect();
+/* C: risen, laid out horizontally. r is caseSlot's rect, read once per frame — same reasoning */
+function laid(i,r){
   var cols=narrow?2:4,gap=narrow?12:22,col=i%cols,row=Math.floor(i/cols),rowW=cols*CW+(cols-1)*gap;
   return{x:r.left+(r.width-rowW)/2+col*(CW+gap),y:r.top+row*(CH+gap),s:1,r:0,rx:0,ry:0}}
 
@@ -2681,6 +2693,20 @@ function render(){
   if(!onHome)return;
   var p1=ease(clamp((smooth-marks.f0)/(marks.f1-marks.f0)));
   var p2=ease(clamp((smooth-marks.l0)/(marks.l1-marks.l0)));
+  /* read every rect this frame needs ONCE, before any write below: a getBoundingClientRect()
+     after a style write forces the browser to redo layout mid-frame */
+  var sy=window.pageYOffset||0,
+      navR=navSlot.getBoundingClientRect(),
+      stoolR=stoolEl?stoolEl.getBoundingClientRect():null,
+      slotR=p2>0?caseSlot.getBoundingClientRect():null,
+      /* once the stool's sticky stage lets go, the cards ride IN the page (absolute, document
+         coordinates) instead of being pinned to the screen and chased by JS. The browser then
+         scrolls stool and cards together in the same frame, so they can't fall behind the
+         stool and snap back on a fast scroll. Before that the stool is pinned, so the
+         screen-fixed cards already match it. */
+      docMode=!!dropEl&&sy>dropEl.offsetTop+dropEl.offsetHeight-innerHeight,
+      oy=docMode?sy:0;
+  deck.classList.toggle("doc",docMode);
   var peel=clamp(p2*1.7);deck.style.setProperty("--peel",peel.toFixed(3));deck.classList.toggle("peeled",peel>.97);
   /* hover opens as soon as the cards have left the table and are heading into the row,
      not only when they are pixel-perfect: people stop scrolling wherever they like */
@@ -2693,7 +2719,7 @@ function render(){
   veil.style.visibility=hvHot>.01?"visible":"hidden";
   for(var i=0;i<cards.length;i++){
     hv[i]+=((i===hotI?1:0)-hv[i])*.16; if(hv[i]<.001)hv[i]=0;
-    var A=docked(i),B=fallen(i),C=laid(i);
+    var A=docked(i,navR),B=fallen(i,stoolR),C=slotR?laid(i,slotR):null;
     var m={x:lerp(A.x,B.x,p1),y:lerp(A.y,B.y,p1),s:lerp(A.s,B.s,p1),r:lerp(A.r,B.r,p1),
            rx:lerp(A.rx||0,B.rx||0,p1),ry:0};
     if(p2>0)m={x:lerp(m.x,C.x,p2),y:lerp(m.y,C.y,p2),s:lerp(m.s,C.s,p2),r:lerp(m.r,C.r,p2),
@@ -2705,7 +2731,7 @@ function render(){
     cards[i].style.zIndex=i===lastHot&&hvHot>.01?20:(i+1);
     /* everything else leaves the stage, so the card sits alone on the page of text */
     cards[i].style.opacity=(lastHot>=0&&i!==lastHot)?(1-hvHot).toFixed(3):"";
-    apply(i,m,hv[i])}
+    m.y+=oy;apply(i,m,hv[i])}
   placeFeats();
   var sp=clamp((smooth-marks.s0)/(marks.s1-marks.s0));
   /* each word comes out of a blur as you scroll: the reading edge moves with the page,
@@ -2729,6 +2755,9 @@ function spy(){
   Array.prototype.forEach.call(document.querySelectorAll(".nav a[data-r]"),function(a){a.classList.toggle("here",a.getAttribute("data-r")===key)})}
 function frame(){
   target=window.pageYOffset||document.documentElement.scrollTop||0;
+  /* progress glides a little behind the scroll. The ends it moves between are real page
+     positions (see docMode in render), so the glide only softens the rise itself; sitting on
+     the stool or in the row, the cards stay locked to the page */
   smooth+=(target-smooth)*.14;
   if(Math.abs(target-smooth)<.15)smooth=target;
   render();requestAnimationFrame(frame)}
@@ -3788,7 +3817,7 @@ function reveal(){
   function prefetch(){var cur=keyOf(location.hash),all=PAGES.map(function(p){return p[0]}).concat(["contact"]);
     all.forEach(function(k,i){if(k===cur||CACHE[k])return;var v=document.getElementById("v-"+k);if(!v)return;
       setTimeout(function(){if(!CACHE[k])CACHE[k]=snap(v,0)},i*60)})}
-  setTimeout(prefetch,1600);
+  /* prefetch only fed the removed filmstrip transition; no longer scheduled */
   function A(el,kf,o){return el.animate(kf,Object.assign({fill:"forwards"},o))}
   function T(x,y,k){return "translate("+x.toFixed(1)+"px,"+y.toFixed(1)+"px) scale("+k.toFixed(4)+")"}
   /* the moving page goes soft and grainy mid-flight, and only the moving page */
@@ -3845,8 +3874,12 @@ function reveal(){
           requestAnimationFrame(function(){document.body.classList.remove("sw-land");
             A(sw,[{opacity:1},{opacity:0}],{duration:160}).onfinish=function(){sw.classList.remove("on");sw.getAnimations({subtree:true}).forEach(function(a){a.cancel()});
               Array.prototype.forEach.call(row.querySelectorAll(".pvm"),function(m){m.remove()});row.innerHTML="";document.body.classList.remove("swing");busy=false;prefetch()}})})}},1240)}
+  /* Hardik asked for the filmstrip page transition gone: it cloned every top-level page's DOM
+     and ran a ~1.2s choreographed carousel (pan, border-radius, blur) on every nav click, which
+     is real main-thread work on a page this asset-heavy. go() above is now unused but left in
+     place in case this is ever revisited; nav clicks just navigate directly. */
   document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href^='#/']");if(!a||e.metaKey||e.ctrlKey||e.shiftKey)return;
-    if(!a.closest(".nav,.foot,.gobar,.navmenu"))return;e.preventDefault();go(a.getAttribute("href"))},true);
+    if(!a.closest(".nav,.foot,.gobar,.navmenu"))return;e.preventDefault();location.hash=a.getAttribute("href")},true);
 
   /* ============ 2. the canvas ============ */
   var DEF=[{t:"text",x:-10,y:-170,w:980,h:70,r:0,fs:64,txt:"Everything else I've made."}];
